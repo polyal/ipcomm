@@ -10,9 +10,9 @@
 
 using namespace std;
 
-int client()
+int client(const string& ip)
 {
-	int sock;
+	int sock, err = 0;
 	struct sockaddr_in server;
 	char server_reply[2000];
 	string message = "Message from client";
@@ -21,49 +21,55 @@ int client()
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock == -1){
 		cout << "ERR socket: " << errno << endl;
-		return errno;
+		err = errno;
+		goto cleanup;
 	}
 	
-	server.sin_addr.s_addr = inet_addr("127.0.0.1");
+	server.sin_addr.s_addr = inet_addr(ip.data());
 	server.sin_family = AF_INET;
 	server.sin_port = htons( 8888 );
 
 	//Connect to remote server
 	if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0){
 		cout << "ERR connect: " << errno << endl;
-		return errno;
+		err = errno;
+		goto cleanup;
 	}
 
 	//Send some data
 	if (send(sock, message.data() , message.length(), 0) < 0){
 		cout << "ERR send: " << errno << endl;
-		return errno;
+		err = errno;
+		goto cleanup;
 	}
 	
 	//Receive a reply from the server
 	if(read(sock, server_reply, 2000) < 0){
 		cout << "ERR read: " << errno << endl;
-		return errno;
+		err = errno;
+		goto cleanup;
 	}
 	
 	cout << "Reply: " << server_reply << endl;
 	
+cleanup:
 	close(sock);
-	return 0;
+	return err;
 }
 
 
 int server()
 { 
-    int socket_desc , client_sock , c , read_size;
-	struct sockaddr_in server , client;
+    int socket_desc, client_sock, c, read_size, err = 0;
+	struct sockaddr_in server, client;
 	char client_message[2000];
 	
 	//Create socket
 	socket_desc = socket(AF_INET , SOCK_STREAM , 0);
 	if (socket_desc == -1){
 		cout << "ERR socket: " << errno << endl;
-		return errno;
+		err = errno;
+		goto cleanup;
 	}
 	
 	//Prepare the sockaddr_in structure
@@ -72,7 +78,8 @@ int server()
 	server.sin_port = htons( 8888 );
 	if(bind(socket_desc, (struct sockaddr *)&server, sizeof(server)) < 0){
 		cout << "ERR bind: " << errno << endl;
-		return errno;
+		err = errno;
+		goto cleanup;
 	}
 
 	//Listen
@@ -85,13 +92,15 @@ int server()
 	client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
 	if (client_sock < 0){
 		cout << "ERR bind: " << errno << endl;
-		return errno;
+		err = errno;
+		goto cleanup;
 	}
 	cout << "Connection Accepted" << endl;
 	
 	//Receive a message from client
 	while((read_size = read(client_sock, client_message, 2000)) > 0 ){
 		//Send the message back to client
+		cout << "Reveived: " << client_message << endl;
 		write(client_sock, client_message , strlen(client_message));
 	}
 	
@@ -102,13 +111,38 @@ int server()
 	else if(read_size == -1){
 		cout << "recv failed" << errno << endl;
 	}
-	
-	return 0;
+
+cleanup:
+	close(socket_desc);
+	close(client_sock);
+
+	return err;
 }
 
 
-int main()
+int main(int argc,char* argv[])
 {
-	cout << "works" << endl;
+	if (argc < 2){
+		cout << "Usage: a.out [c[ip]|s]" << endl;
+		return 0;
+	}
+
+	string arg1{argv[1]};
+	if (arg1 == "s"){
+		server();
+	}
+	else if (arg1 == "c"){
+		if (argc < 3){
+			cout << "Usage: a.out [c[ip]|s]" << endl;
+			return 0;
+		}
+		string arg2{argv[2]};
+		client(arg2);
+	}
+	else{
+		cout << arg1 << " is an invalid argument" << endl;
+		cout << "Usage: a.out [c|s]" << endl;
+	}
+
 	return 0;
 }
