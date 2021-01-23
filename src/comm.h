@@ -25,6 +25,7 @@ public:
 
 private:
 	const int port = 9090;
+	const int buffSize = 1024;
 	int serverSocket = -1;
 	int commSocket = -1;
 
@@ -47,8 +48,6 @@ private:
 	int createClient();
 
 	int close();
-
-
 };
 
 #endif

@@ -30,6 +30,9 @@ void Comm::server()
 
 	this->receivehread = make_unique<thread>(&Comm::receive, this);
 	this->sendThread = make_unique<thread>(&Comm::send, this);
+	this->receivehread->join();
+	this->sendThread->join();
+
 }
 
 bool Comm::createServer()
@@ -66,17 +69,28 @@ bool Comm::createServer()
 
 void Comm::receive()
 {
+	vector<char> buffer(this->buffSize);
+	string message;
 	while (this->runServer){
-
-
+		while(::read(this->commSocket, &buffer[0], this->buffSize) > 0 ){
+			string part(buffer.begin(), buffer.end());
+			message.append(part);
+			cout << "Reveived: " << part << endl;
+		}
+		this->messages.push(message);
+		buffer.clear();
+		message.clear();
 	}
 }
 
 void Comm::send()
 {
 	while (this->runServer){
-
-
+		while (!this->messages.empty()){
+			string message = this->messages.front();
+			::write(this->commSocket, message.data() , message.length());
+			this->messages.pop();
+		}
 	}
 }
 
