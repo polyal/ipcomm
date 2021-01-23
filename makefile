@@ -2,10 +2,11 @@ cc = g++
 cv = -std=c++1z
 wrn = -Wall -Wextra -pedantic
 compile = $(cc) $(cv) $(wrn)
+libs = -pthread
 
 
 default:
-	$(compile) src/main.cpp -o out/a.out
+	$(compile) src/main.cpp src/comm.cpp $(libs) -o out/a.out
 
 clean:
 	rm out/*
