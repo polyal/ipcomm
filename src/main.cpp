@@ -10,59 +10,43 @@
 
 using namespace std;
 
-
-const unsigned short port = 8080;
-const string hello = "Hello from server";
-
 int client()
 {
 	int sock;
 	struct sockaddr_in server;
-	char message[1000] , server_reply[2000];
+	char server_reply[2000];
+	string message = "Message from client";
 	
 	//Create socket
-	sock = socket(AF_INET , SOCK_STREAM , 0);
+	sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock == -1){
 		cout << "ERR socket: " << errno << endl;
+		return errno;
 	}
-	puts("Socket created");
 	
 	server.sin_addr.s_addr = inet_addr("127.0.0.1");
 	server.sin_family = AF_INET;
 	server.sin_port = htons( 8888 );
 
 	//Connect to remote server
-	if (connect(sock , (struct sockaddr *)&server , sizeof(server)) < 0)
-	{
-		perror("connect failed. Error");
-		return 1;
+	if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0){
+		cout << "ERR connect: " << errno << endl;
+		return errno;
+	}
+
+	//Send some data
+	if (send(sock, message.data() , message.length(), 0) < 0){
+		cout << "ERR send: " << errno << endl;
+		return errno;
 	}
 	
-	puts("Connected\n");
-	
-	//keep communicating with server
-	while(1)
-	{
-		printf("Enter message : ");
-		scanf("%s" , message);
-		
-		//Send some data
-		if( send(sock , message , strlen(message) , 0) < 0)
-		{
-			puts("Send failed");
-			return 1;
-		}
-		
-		//Receive a reply from the server
-		if( recv(sock , server_reply , 2000 , 0) < 0)
-		{
-			puts("recv failed");
-			break;
-		}
-		
-		puts("Server reply :");
-		puts(server_reply);
+	//Receive a reply from the server
+	if(read(sock, server_reply, 2000) < 0){
+		cout << "ERR read: " << errno << endl;
+		return errno;
 	}
+	
+	cout << "Reply: " << server_reply << endl;
 	
 	close(sock);
 	return 0;
@@ -77,57 +61,46 @@ int server()
 	
 	//Create socket
 	socket_desc = socket(AF_INET , SOCK_STREAM , 0);
-	if (socket_desc == -1)
-	{
-		printf("Could not create socket");
+	if (socket_desc == -1){
+		cout << "ERR socket: " << errno << endl;
+		return errno;
 	}
-	puts("Socket created");
 	
 	//Prepare the sockaddr_in structure
 	server.sin_family = AF_INET;
 	server.sin_addr.s_addr = INADDR_ANY;
 	server.sin_port = htons( 8888 );
-	
-	//Bind
-	if( bind(socket_desc,(struct sockaddr *)&server , sizeof(server)) < 0)
-	{
-		//print the error message
-		perror("bind failed. Error");
-		return 1;
+	if(bind(socket_desc, (struct sockaddr *)&server, sizeof(server)) < 0){
+		cout << "ERR bind: " << errno << endl;
+		return errno;
 	}
-	puts("bind done");
-	
+
 	//Listen
-	listen(socket_desc , 3);
+	listen(socket_desc, 3);
 	
 	//Accept and incoming connection
-	puts("Waiting for incoming connections...");
+	cout << "Waiting for incoming connections..." << endl;
 	c = sizeof(struct sockaddr_in);
-	
 	//accept connection from an incoming client
 	client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
-	if (client_sock < 0)
-	{
-		perror("accept failed");
-		return 1;
+	if (client_sock < 0){
+		cout << "ERR bind: " << errno << endl;
+		return errno;
 	}
-	puts("Connection accepted");
+	cout << "Connection Accepted" << endl;
 	
 	//Receive a message from client
-	while( (read_size = recv(client_sock , client_message , 2000 , 0)) > 0 )
-	{
+	while((read_size = read(client_sock, client_message, 2000)) > 0 ){
 		//Send the message back to client
-		write(client_sock , client_message , strlen(client_message));
+		write(client_sock, client_message , strlen(client_message));
 	}
 	
-	if(read_size == 0)
-	{
-		puts("Client disconnected");
+	if(read_size == 0){
+		cout << "Client disconnected" << errno << endl;
 		fflush(stdout);
 	}
-	else if(read_size == -1)
-	{
-		perror("recv failed");
+	else if(read_size == -1){
+		cout << "recv failed" << errno << endl;
 	}
 	
 	return 0;
