@@ -99,16 +99,6 @@ int Comm::createClient()
 
 }
 
-int Comm::read()
-{
-
-}
-
-int Comm::write()
-{
-
-}
-
 int Comm::close()
 {
 	if (this->serverSocket >= 0)

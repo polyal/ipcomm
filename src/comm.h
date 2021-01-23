@@ -20,9 +20,6 @@ public:
 
 	void createServerThread();
 
-	int read();
-	int write();
-
 private:
 	const int port = 9090;
 	const int buffSize = 1024;
