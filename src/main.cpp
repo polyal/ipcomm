@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <string>
+#include "comm.h"
 
 using namespace std;
 
@@ -27,7 +28,7 @@ int client(const string& ip)
 	
 	server.sin_addr.s_addr = inet_addr(ip.data());
 	server.sin_family = AF_INET;
-	server.sin_port = htons( 8888 );
+	server.sin_port = htons( 9090 );
 
 	//Connect to remote server
 	if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0){
@@ -75,7 +76,7 @@ int server()
 	//Prepare the sockaddr_in structure
 	server.sin_family = AF_INET;
 	server.sin_addr.s_addr = INADDR_ANY;
-	server.sin_port = htons( 8888 );
+	server.sin_port = htons( 9090 );
 	if(bind(socket_desc, (struct sockaddr *)&server, sizeof(server)) < 0){
 		cout << "ERR bind: " << errno << endl;
 		err = errno;
@@ -129,7 +130,16 @@ int main(int argc,char* argv[])
 
 	string arg1{argv[1]};
 	if (arg1 == "s"){
-		server();
+		//server();
+		Comm comm;
+		comm.createServer();
+		while (comm.isRunning()){
+			string in;
+			getline(cin, in);
+			if (in == ":q")
+				break;
+			comm.sendMessage(in);
+		}
 	}
 	else if (arg1 == "c"){
 		if (argc < 3){
@@ -138,11 +148,22 @@ int main(int argc,char* argv[])
 		}
 		string arg2{argv[2]};
 		client(arg2);
+
+		Comm comm{arg2};
+		comm.createClient();
+		while (comm.isRunning()){
+			string in;
+			getline(cin, in);
+			if (in == ":q")
+				break;
+			comm.sendMessage(in);
+		}
 	}
 	else{
 		cout << arg1 << " is an invalid argument" << endl;
 		cout << "Usage: a.out [c|s]" << endl;
 	}
+
 
 	return 0;
 }
