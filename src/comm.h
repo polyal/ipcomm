@@ -38,8 +38,11 @@ private:
 	queue<string> printingQueue;
 	atomic<bool> runServer = true;
 	bool printMessages = false;
-	recursive_mutex m;
-	condition_variable_any cv;
+	bool sendMessages = false;
+	recursive_mutex outputm;
+	recursive_mutex inputm;
+	condition_variable_any outputcv;
+	condition_variable_any inputcv;
 	unique_ptr<thread> serverthread = nullptr;
 	unique_ptr<thread> receivehread = nullptr;
 	unique_ptr<thread> sendThread = nullptr;

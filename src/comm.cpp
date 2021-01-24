@@ -18,7 +18,11 @@ Comm::~Comm()
 
 void Comm::sendMessage(const string& message)
 {
+	unique_lock<recursive_mutex> lock(this->inputm);
 	this->messages.push(message);
+	this->sendMessages = true;
+	lock.unlock();
+	this->inputcv.notify_one();
 }
 
 void Comm::createServerThread()
@@ -88,7 +92,8 @@ void Comm::receive()
 		buffer.clear();
 		reply.clear();
 
-		unique_lock<recursive_mutex> lock(this->m);
+		unique_lock<recursive_mutex> lock(this->outputm);
+		int locked  = true;
 		if (!this->printMessages){
 			while (!this->replies.empty()){
 				string message = this->replies.front();
@@ -97,16 +102,23 @@ void Comm::receive()
 				this->replies.pop();
 			}
 			this->printMessages = true;
-			cv.notify_one();
+			lock.unlock();
+			locked = false;
+			outputcv.notify_one();
 		}
-		lock.unlock();
+		if (locked)
+			lock.unlock();
 	}
 }
 
 void Comm::send()
 {
 	while (this->runServer){
-		unique_lock<recursive_mutex> lock(this->m);
+		unique_lock<recursive_mutex> lockin(this->inputm);
+		inputcv.wait(lockin, [this]{ return this->sendMessages;});
+		unique_lock<recursive_mutex> lockout(this->outputm);
+		int locked = true;
+
 		if (!this->printMessages){
 			while (!this->messages.empty()){
 				string message = this->messages.front();
@@ -115,17 +127,22 @@ void Comm::send()
 				this->messages.pop();
 			}
 			this->printMessages = true;
-			cv.notify_one();
+			this->sendMessages = false;
+			lockout.unlock();
+			locked = false;
+			outputcv.notify_one();
 		}
-		lock.unlock();
+		if (locked)
+			lockout.unlock();
+		lockin.unlock();
 	}
 }
 
 void Comm::print()
 {
 	while (this->runServer){
-		unique_lock<recursive_mutex> lock(this->m);
-		this->cv.wait(lock, [this]{ return this->printMessages;});
+		unique_lock<recursive_mutex> lock(this->outputm);
+		this->outputcv.wait(lock, [this]{ return this->printMessages;});
 
 		while (!printingQueue.empty()){
 			string message = printingQueue.front();
@@ -135,7 +152,6 @@ void Comm::print()
 
 		this->printMessages = false;
 		lock.unlock();
-		this_thread::sleep_for (std::chrono::milliseconds(20));
 	}
 }
 
