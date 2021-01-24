@@ -19,9 +19,11 @@ class Comm
 {
 public:
 	Comm();
+	Comm(const string& ip, const int port);
 	~Comm();
 
 	void createServerThread();
+	void createClientThread();
 	void sendMessage(const string& message);
 
 private:
@@ -44,6 +46,7 @@ private:
 	condition_variable_any outputcv;
 	condition_variable_any inputcv;
 	unique_ptr<thread> serverthread = nullptr;
+	unique_ptr<thread> clientthread = nullptr;
 	unique_ptr<thread> receivehread = nullptr;
 	unique_ptr<thread> sendThread = nullptr;
 	
@@ -51,7 +54,8 @@ private:
 
 	void server();
 	bool createServer();
-	int createClient();
+	void client();
+	bool createClient();
 	void receive();
 	void send();
 	void print();

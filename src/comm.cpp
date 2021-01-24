@@ -11,6 +11,13 @@ Comm::Comm()
 	this->serverAddr.sin_port = htons(port);
 }
 
+Comm::Comm(const string& ip, const int port)
+{
+	this->serverAddr.sin_family = AF_INET;
+	this->serverAddr.sin_addr.s_addr = inet_addr(ip.data());
+	this->serverAddr.sin_port = htons(port);
+}
+
 Comm::~Comm()
 {
 	close();
@@ -33,7 +40,8 @@ void Comm::createServerThread()
 void Comm::server()
 {
 	if (!createServer()){
-		cout << "Error creating server" << endl;
+		close();
+		cout << "Error creating server: " << this->err << endl;
 		return;
 	}
 
@@ -55,14 +63,12 @@ bool Comm::createServer()
 	if(bind(this->serverSocket, reinterpret_cast<struct sockaddr*>(&this->serverAddr), sizeof(this->serverAddr)) < 0){
 		cout << "ERR bind: " << errno << endl;
 		this->err = errno;
-		close();
 		return false;
 	}
 
 	if (listen(this->serverSocket, 1) < 0){
 		cout << "ERR bind: " << errno << endl;
 		this->err = errno;
-		close();
 		return false;
 	}
 	cout << "Waiting for incoming connections..." << endl;
@@ -72,10 +78,10 @@ bool Comm::createServer()
 	if (this->commSocket < 0){
 		cout << "ERR bind: " << errno << endl;
 		this->err = errno;
-		close();
 		return false;
 	}
 	cout << "Connection Accepted" << endl;
+	return true;
 }
 
 void Comm::receive()
@@ -155,9 +161,40 @@ void Comm::print()
 	}
 }
 
-int Comm::createClient()
+void Comm::createClientThread()
 {
+	this->clientthread = make_unique<thread>(&Comm::client, this);
+}
 
+bool Comm::createClient()
+{	
+	this->commSocket = socket(AF_INET, SOCK_STREAM, 0);
+	if (this->commSocket == -1){
+		cout << "ERR socket: " << errno << endl;
+		this->err = errno;
+		return false;
+	}
+
+	if (connect(this->commSocket, reinterpret_cast<struct sockaddr*>(&this->serverAddr), sizeof(this->serverAddr)) < 0){
+		cout << "ERR connect: " << errno << endl;
+		this->err = errno;
+		return false;
+	}
+	return true;
+}
+
+void Comm::client()
+{
+	if (!createClient()){
+		cout << "Error creating client: " << this->err << endl;
+		close();
+		return;
+	}
+
+	this->receivehread = make_unique<thread>(&Comm::receive, this);
+	this->sendThread = make_unique<thread>(&Comm::send, this);
+	this->receivehread->join();
+	this->sendThread->join();
 }
 
 int Comm::close()
