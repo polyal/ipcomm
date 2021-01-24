@@ -25,6 +25,7 @@ public:
 	void createServer();
 	void createClient();
 	void sendMessage(const string& message);
+	bool isRunning() const;
 
 private:
 	const int port = 9090;

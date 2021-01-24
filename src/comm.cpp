@@ -221,6 +221,11 @@ void Comm::joinWorkerThreads()
 		this->printThread->join();
 }
 
+bool Comm::isRunning() const
+{
+	return this->run;
+}
+
 int Comm::close()
 {
 	int res = 0;
