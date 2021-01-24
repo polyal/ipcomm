@@ -16,6 +16,11 @@ Comm::~Comm()
 	this->serverAddr.sin_port = htons(port);
 }
 
+void Comm::sendMessage(const string& message)
+{
+	this->messages.push(message);
+}
+
 void Comm::createServerThread()
 {
 	this->serverthread = make_unique<thread>(&Comm::server, this);
@@ -70,27 +75,69 @@ bool Comm::createServer()
 void Comm::receive()
 {
 	vector<char> buffer(this->buffSize);
-	string message;
+	string reply;
 	while (this->runServer){
 		while(::read(this->commSocket, &buffer[0], this->buffSize) > 0 ){
 			string part(buffer.begin(), buffer.end());
-			message.append(part);
+			reply.append(part);
 			cout << "Reveived: " << part << endl;
 		}
-		this->messages.push(message);
+		this->replies.push(reply);
 		buffer.clear();
-		message.clear();
+		reply.clear();
+
+		unique_lock<recursive_mutex> lock(this->m);
+		if (!this->printMessages){
+			while (!this->replies.empty()){
+				string message = this->replies.front();
+				::write(this->commSocket, message.data(), message.length());
+				this->printingQueue.push(message);
+				this->replies.pop();
+			}
+			this->printMessages = true;
+			cv.notify_one();
+		}
+		lock.unlock();
 	}
+
+
 }
 
 void Comm::send()
 {
 	while (this->runServer){
-		while (!this->messages.empty()){
-			string message = this->messages.front();
-			::write(this->commSocket, message.data() , message.length());
-			this->messages.pop();
+		{
+			unique_lock<recursive_mutex> lock(this->m);
+			if (!this->printMessages){
+				while (!this->messages.empty()){
+					string message = this->messages.front();
+					::write(this->commSocket, message.data() , message.length());
+					this->printingQueue.push(message);
+					this->messages.pop();
+				}
+				this->printMessages = true;
+				cv.notify_one();
+			}
+			lock.unlock();
 		}
+	}
+}
+
+void Comm::print()
+{
+	while (this->runServer){
+		unique_lock<recursive_mutex> lock(this->m);
+		this->cv.wait(lock, [this]{ return this->printMessages;});
+
+		while (!printingQueue.empty()){
+			string message = printingQueue.front();
+			cout << message << endl;
+			printingQueue.pop();
+		}
+
+		this->printMessages = false;
+		lock.unlock();
+		this_thread::sleep_for (std::chrono::milliseconds(20));
 	}
 }
 
@@ -101,8 +148,10 @@ int Comm::createClient()
 
 int Comm::close()
 {
+	int res = 0;
 	if (this->serverSocket >= 0)
-		::close(this->serverSocket);
+		res = ::close(this->serverSocket);
 	if (this->commSocket >= 0)
-		::close(this->commSocket);
+		res = res || ::close(this->commSocket);
+	return res;
 }

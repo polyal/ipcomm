@@ -9,8 +9,11 @@
 #include <atomic>
 #include <memory>
 #include <thread>
+#include <condition_variable>
+#include <mutex>
 
 using namespace std;
+
 
 class Comm
 {
@@ -19,6 +22,7 @@ public:
 	~Comm();
 
 	void createServerThread();
+	void sendMessage(const string& message);
 
 private:
 	const int port = 9090;
@@ -30,19 +34,25 @@ private:
 	struct sockaddr_in clientAddr;
 
 	queue<string> messages;
+	queue<string> replies;
+	queue<string> printingQueue;
 	atomic<bool> runServer = true;
+	bool printMessages = false;
+	recursive_mutex m;
+	condition_variable_any cv;
 	unique_ptr<thread> serverthread = nullptr;
 	unique_ptr<thread> receivehread = nullptr;
 	unique_ptr<thread> sendThread = nullptr;
-
 	
 	int err = 0;
 
 	void server();
 	bool createServer();
+	int createClient();
 	void receive();
 	void send();
-	int createClient();
+	void print();
+	
 
 	int close();
 };
