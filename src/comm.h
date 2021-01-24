@@ -22,8 +22,8 @@ public:
 	Comm(const string& ip, const int port);
 	~Comm();
 
-	void createServerThread();
-	void createClientThread();
+	void createServer();
+	void createClient();
 	void sendMessage(const string& message);
 
 private:
@@ -38,24 +38,29 @@ private:
 	queue<string> messages;
 	queue<string> replies;
 	queue<string> printingQueue;
-	atomic<bool> runServer = true;
+	atomic<bool> run = false;
 	bool printMessages = false;
 	bool sendMessages = false;
 	recursive_mutex outputm;
 	recursive_mutex inputm;
 	condition_variable_any outputcv;
 	condition_variable_any inputcv;
-	unique_ptr<thread> serverthread = nullptr;
-	unique_ptr<thread> clientthread = nullptr;
-	unique_ptr<thread> receivehread = nullptr;
+	unique_ptr<thread> serverThread = nullptr;
+	unique_ptr<thread> clientThread = nullptr;
+	unique_ptr<thread> receiveThread = nullptr;
 	unique_ptr<thread> sendThread = nullptr;
+	unique_ptr<thread> printThread = nullptr;
 	
 	int err = 0;
 
+	void createServerThread();
 	void server();
-	bool createServer();
+	bool initServer();
+	void createClientThread();
 	void client();
-	bool createClient();
+	bool initClient();
+	void createWorkerThreads();
+	void joinWorkerThreads();
 	void receive();
 	void send();
 	void print();
