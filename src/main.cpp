@@ -147,7 +147,7 @@ int main(int argc,char* argv[])
 			return 0;
 		}
 		string arg2{argv[2]};
-		client(arg2);
+		//client(arg2);
 
 		Comm comm{arg2};
 		comm.createClient();
