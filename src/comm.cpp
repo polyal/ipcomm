@@ -6,14 +6,14 @@ using namespace std;
 
 Comm::Comm()
 {
-
+	this->serverAddr.sin_family = AF_INET;
+	this->serverAddr.sin_addr.s_addr = INADDR_ANY;
+	this->serverAddr.sin_port = htons(port);
 }
 
 Comm::~Comm()
 {
-	this->serverAddr.sin_family = AF_INET;
-	this->serverAddr.sin_addr.s_addr = INADDR_ANY;
-	this->serverAddr.sin_port = htons(port);
+	close();
 }
 
 void Comm::sendMessage(const string& message)
@@ -37,7 +37,6 @@ void Comm::server()
 	this->sendThread = make_unique<thread>(&Comm::send, this);
 	this->receivehread->join();
 	this->sendThread->join();
-
 }
 
 bool Comm::createServer()
@@ -52,12 +51,14 @@ bool Comm::createServer()
 	if(bind(this->serverSocket, reinterpret_cast<struct sockaddr*>(&this->serverAddr), sizeof(this->serverAddr)) < 0){
 		cout << "ERR bind: " << errno << endl;
 		this->err = errno;
+		close();
 		return false;
 	}
 
 	if (listen(this->serverSocket, 1) < 0){
 		cout << "ERR bind: " << errno << endl;
 		this->err = errno;
+		close();
 		return false;
 	}
 	cout << "Waiting for incoming connections..." << endl;
@@ -67,6 +68,7 @@ bool Comm::createServer()
 	if (this->commSocket < 0){
 		cout << "ERR bind: " << errno << endl;
 		this->err = errno;
+		close();
 		return false;
 	}
 	cout << "Connection Accepted" << endl;
@@ -99,27 +101,23 @@ void Comm::receive()
 		}
 		lock.unlock();
 	}
-
-
 }
 
 void Comm::send()
 {
 	while (this->runServer){
-		{
-			unique_lock<recursive_mutex> lock(this->m);
-			if (!this->printMessages){
-				while (!this->messages.empty()){
-					string message = this->messages.front();
-					::write(this->commSocket, message.data() , message.length());
-					this->printingQueue.push(message);
-					this->messages.pop();
-				}
-				this->printMessages = true;
-				cv.notify_one();
+		unique_lock<recursive_mutex> lock(this->m);
+		if (!this->printMessages){
+			while (!this->messages.empty()){
+				string message = this->messages.front();
+				::write(this->commSocket, message.data() , message.length());
+				this->printingQueue.push(message);
+				this->messages.pop();
 			}
-			lock.unlock();
+			this->printMessages = true;
+			cv.notify_one();
 		}
+		lock.unlock();
 	}
 }
 

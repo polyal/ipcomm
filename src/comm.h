@@ -53,7 +53,6 @@ private:
 	void send();
 	void print();
 	
-
 	int close();
 };
 
