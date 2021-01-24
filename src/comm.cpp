@@ -8,14 +8,14 @@ Comm::Comm()
 {
 	this->serverAddr.sin_family = AF_INET;
 	this->serverAddr.sin_addr.s_addr = INADDR_ANY;
-	this->serverAddr.sin_port = htons(port);
+	this->serverAddr.sin_port = htons(this->port);
 }
 
-Comm::Comm(const string& ip, const int port)
+Comm::Comm(const string& ip)
 {
 	this->serverAddr.sin_family = AF_INET;
 	this->serverAddr.sin_addr.s_addr = inet_addr(ip.data());
-	this->serverAddr.sin_port = htons(port);
+	this->serverAddr.sin_port = htons(this->port);
 }
 
 Comm::~Comm()

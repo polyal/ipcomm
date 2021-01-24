@@ -19,7 +19,7 @@ class Comm
 {
 public:
 	Comm();
-	Comm(const string& ip, const int port);
+	Comm(const string& ip);
 	~Comm();
 
 	void createServer();
