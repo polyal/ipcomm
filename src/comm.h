@@ -26,6 +26,7 @@ public:
 	void createClient();
 	void sendMessage(const string& message);
 	bool isRunning() const;
+	void kill();
 
 private:
 	const int port = 9090;
@@ -39,7 +40,7 @@ private:
 	queue<string> messages;
 	queue<string> replies;
 	queue<string> printingQueue;
-	atomic<bool> run = false;
+	atomic<bool> run = true;
 	bool printMessages = false;
 	bool sendMessages = false;
 	recursive_mutex outputm;

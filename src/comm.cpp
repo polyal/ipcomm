@@ -41,8 +41,6 @@ void Comm::createServer()
 void Comm::createServerThread()
 {
 	this->serverThread = make_unique<thread>(&Comm::server, this);
-	if (this->serverThread)
-		this->serverThread->join();
 }
 
 void Comm::server()
@@ -64,7 +62,7 @@ bool Comm::initServer()
 		return false;
 	}
 	
-	if(bind(this->serverSocket, reinterpret_cast<struct sockaddr*>(&this->serverAddr), sizeof(this->serverAddr)) < 0){
+	if (bind(this->serverSocket, reinterpret_cast<struct sockaddr*>(&this->serverAddr), sizeof(this->serverAddr)) < 0){
 		cout << "ERR bind: " << errno << endl;
 		this->err = errno;
 		return false;
@@ -78,26 +76,30 @@ bool Comm::initServer()
 	cout << "Waiting for incoming connections..." << endl;
 
 	fd_set readfds;
-    FD_ZERO(&readfds);
-    FD_SET(this->serverSocket, &readfds);
+    do {
+	    FD_ZERO(&readfds);
+	    FD_SET(this->serverSocket, &readfds);
+	    struct timeval timeout;
+	    timeout.tv_sec = 5;
+	    timeout.tv_usec = 0;
 
-    struct timeval timeout;
-    timeout.tv_sec = 5;
-    timeout.tv_usec = 0;
+	    if (select(this->serverSocket + 1, &readfds, NULL, NULL, &timeout) < 0){
+	        std::cerr << "ERR select: " << errno << endl;
+	        if (errno == EINTR){
+	        	cout << "EINTR" << endl;
+	        }
+	        return false;
+	    }
+	    /*if (!FD_ISSET(this->serverSocket, &readfds)) {
+	    	cout << "ERR FD_ISSET: " << errno << endl;
+			this->err = errno;
+			return false;
+	    }*/
+	    cout << "Loop " << this->run << endl;
+	    if (!this->run)
+			return false;
+	} while (!FD_ISSET(this->serverSocket, &readfds));
 
-    if (select(this->serverSocket + 1, &readfds, NULL, NULL, &timeout) < 0){
-        std::cerr << "ERR select: " << errno << endl;
-        if (errno == EINTR){
-        	cout << "EINTR" << endl;
-        }
-        return false;
-    }
-
-    if (!FD_ISSET(this->serverSocket, &readfds)) {
-    	cout << "ERR listen: " << errno << endl;
-		this->err = errno;
-		return false;
-    }
     int size = sizeof(struct sockaddr_in);
 	this->commSocket = accept(this->serverSocket, reinterpret_cast<struct sockaddr*>(&this->clientAddr), (socklen_t*)&size);
 	if (this->commSocket < 0){
@@ -226,7 +228,6 @@ void Comm::print()
 
 void Comm::createWorkerThreads()
 {
-	this->run = true;
 	this->receiveThread = make_unique<thread>(&Comm::receive, this);
 	this->sendThread = make_unique<thread>(&Comm::send, this);
 	this->printThread = make_unique<thread>(&Comm::print, this);
@@ -234,7 +235,9 @@ void Comm::createWorkerThreads()
 
 void Comm::joinWorkerThreads()
 {
-	this->run = false;
+	kill();
+	if (this->serverThread)
+		this->serverThread->join();
 	if (this->receiveThread)
 		this->receiveThread->join();
 	if (this->sendThread)
@@ -246,6 +249,11 @@ void Comm::joinWorkerThreads()
 bool Comm::isRunning() const
 {
 	return this->run;
+}
+
+void Comm::kill()
+{
+	this->run = false;
 }
 
 int Comm::close()
