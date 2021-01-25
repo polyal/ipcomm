@@ -70,6 +70,13 @@ bool Comm::initServer()
 		return false;
 	}
 
+	/*struct timeval timeout;      
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 0;
+    if (setsockopt (this->serverSocket, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0){
+        cout << "Channel Error: Couldn't set timeout" << endl;
+    }*/
+
 	if (listen(this->serverSocket, 1) < 0){
 		cout << "ERR bind: " << errno << endl;
 		this->err = errno;
@@ -132,19 +139,26 @@ void Comm::receive()
 	while (this->run){
 		vector<char> buffer(this->buffSize);
 		string reply;
-		while(::read(this->commSocket, &buffer[0], this->buffSize) > 0 ){
-			string part(buffer.begin(), buffer.end());
+		int bytesRead;
+		while ((bytesRead = ::read(this->commSocket, &buffer[0], this->buffSize)) > 0){
+	        string part(buffer.begin(), buffer.end());
 			reply.append(part);
-			cout << "Reveived: " << part << endl;
-		}
-		this->replies.push(reply);
+			buffer.clear();
+	        if (bytesRead < (int)this->buffSize || (errno != 0 && errno != ENOENT))
+	            break;
+	    }
+	    if(bytesRead == -1){
+	        cout << "Err read: " << errno << endl;
+	        if (errno != ECONNRESET)
+	            throw errno;
+	    }
+	    this->replies.push(reply);
 
 		unique_lock<recursive_mutex> lock(this->outputm);
-		int locked  = true;
+		int locked = true;
 		if (!this->printMessages){
 			while (!this->replies.empty()){
 				string message = this->replies.front();
-				::write(this->commSocket, message.data(), message.length());
 				this->printingQueue.push(message);
 				this->replies.pop();
 			}
@@ -161,27 +175,16 @@ void Comm::receive()
 void Comm::send()
 {
 	while (this->run){
-		unique_lock<recursive_mutex> lockin(this->inputm);
-		inputcv.wait(lockin, [this]{ return this->sendMessages;});
-		unique_lock<recursive_mutex> lockout(this->outputm);
-		int locked = true;
-
-		if (!this->printMessages){
-			while (!this->messages.empty()){
-				string message = this->messages.front();
-				::write(this->commSocket, message.data() , message.length());
-				this->printingQueue.push(message);
-				this->messages.pop();
-			}
-			this->printMessages = true;
-			this->sendMessages = false;
-			lockout.unlock();
-			locked = false;
-			outputcv.notify_one();
+		unique_lock<recursive_mutex> lock(this->inputm);
+		inputcv.wait(lock, [this]{ return this->sendMessages;});
+		while (!this->messages.empty()){
+			string message = this->messages.front();
+			::write(this->commSocket, message.data() , message.length());
+			cout << "Sending: " << message << endl;
+			this->messages.pop();
 		}
-		if (locked)
-			lockout.unlock();
-		lockin.unlock();
+		this->sendMessages = false;
+		lock.unlock();
 	}
 }
 
