@@ -70,28 +70,47 @@ bool Comm::initServer()
 		return false;
 	}
 
-	/*struct timeval timeout;      
-    timeout.tv_sec = 5;
-    timeout.tv_usec = 0;
-    if (setsockopt (this->serverSocket, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0){
-        cout << "Channel Error: Couldn't set timeout" << endl;
-    }*/
-
 	if (listen(this->serverSocket, 1) < 0){
-		cout << "ERR bind: " << errno << endl;
+		cout << "ERR listen: " << errno << endl;
 		this->err = errno;
 		return false;
 	}
 	cout << "Waiting for incoming connections..." << endl;
-	
-	int size = sizeof(struct sockaddr_in);
+
+	fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(this->serverSocket, &readfds);
+
+    struct timeval timeout;
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 0;
+
+    if (select(this->serverSocket + 1, &readfds, NULL, NULL, &timeout) < 0){
+        std::cerr << "ERR select: " << errno << endl;
+        if (errno == EINTR){
+        	cout << "EINTR" << endl;
+        }
+        return false;
+    }
+
+    if (!FD_ISSET(this->serverSocket, &readfds)) {
+    	cout << "ERR listen: " << errno << endl;
+		this->err = errno;
+		return false;
+    }
+    int size = sizeof(struct sockaddr_in);
 	this->commSocket = accept(this->serverSocket, reinterpret_cast<struct sockaddr*>(&this->clientAddr), (socklen_t*)&size);
 	if (this->commSocket < 0){
-		cout << "ERR bind: " << errno << endl;
+		cout << "ERR accept: " << errno << endl;
 		this->err = errno;
 		return false;
 	}
 	cout << "Connection Accepted" << endl;
+    cout << "New connection : "
+    << "[SOCKET_FD : " << this->commSocket
+    << " , IP : " << inet_ntoa(this->clientAddr.sin_addr)
+    << " , PORT : " << ntohs(this->clientAddr.sin_port)
+    << "]" << endl;
 	return true;
 }
 
