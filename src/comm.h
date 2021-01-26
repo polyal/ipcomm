@@ -26,7 +26,6 @@ public:
 	void createClient();
 	void sendMessage(const string& message);
 	bool isRunning() const;
-	void kill();
 
 private:
 	const int port = 9090;
@@ -66,7 +65,11 @@ private:
 	void receive();
 	void send();
 	void print();
-	
+	bool waitReadyOrTimeout(const int fd);
+
+	void kill();
+	void signalWaitingThreads();
+	void killThreadLoops();
 	int close();
 };
 

@@ -20,7 +20,7 @@ Comm::Comm(const string& ip)
 
 Comm::~Comm()
 {
-	joinWorkerThreads();
+	kill();
 	close();
 }
 
@@ -73,32 +73,12 @@ bool Comm::initServer()
 		this->err = errno;
 		return false;
 	}
+
 	cout << "Waiting for incoming connections..." << endl;
-
-	fd_set readfds;
-    do {
-	    FD_ZERO(&readfds);
-	    FD_SET(this->serverSocket, &readfds);
-	    struct timeval timeout;
-	    timeout.tv_sec = 5;
-	    timeout.tv_usec = 0;
-
-	    if (select(this->serverSocket + 1, &readfds, NULL, NULL, &timeout) < 0){
-	        std::cerr << "ERR select: " << errno << endl;
-	        if (errno == EINTR){
-	        	cout << "EINTR" << endl;
-	        }
-	        return false;
-	    }
-	    /*if (!FD_ISSET(this->serverSocket, &readfds)) {
-	    	cout << "ERR FD_ISSET: " << errno << endl;
-			this->err = errno;
-			return false;
-	    }*/
-	    cout << "Loop " << this->run << endl;
+    while (!waitReadyOrTimeout(this->serverSocket)){
 	    if (!this->run)
-			return false;
-	} while (!FD_ISSET(this->serverSocket, &readfds));
+	    	return false;
+	}
 
     int size = sizeof(struct sockaddr_in);
 	this->commSocket = accept(this->serverSocket, reinterpret_cast<struct sockaddr*>(&this->clientAddr), (socklen_t*)&size);
@@ -158,6 +138,10 @@ bool Comm::initClient()
 void Comm::receive()
 {
 	while (this->run){
+		while (!waitReadyOrTimeout(this->commSocket)){
+	    	if (!this->run)
+	    		return;
+		}
 		vector<char> buffer(this->buffSize);
 		string reply;
 		int bytesRead;
@@ -186,7 +170,7 @@ void Comm::receive()
 			this->printMessages = true;
 			lock.unlock();
 			locked = false;
-			outputcv.notify_one();
+			this->outputcv.notify_one();
 		}
 		if (locked)
 			lock.unlock();
@@ -226,6 +210,30 @@ void Comm::print()
 	}
 }
 
+bool Comm::waitReadyOrTimeout(const int fd)
+{
+	fd_set readfds;
+	FD_ZERO(&readfds);
+    FD_SET(fd, &readfds);
+    struct timeval timeout;
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 0;
+
+    if (select(fd + 1, &readfds, NULL, NULL, &timeout) < 0){
+        std::cerr << "ERR select: " << errno << endl;
+        if (errno == EINTR){
+        	cout << "EINTR" << endl;
+        }
+        return false;
+    }
+    if (!FD_ISSET(fd, &readfds)) {
+    	cout << "ERR FD_ISSET: " << errno << endl;
+		this->err = errno;
+		return false;
+    }
+    return true;
+}
+
 void Comm::createWorkerThreads()
 {
 	this->receiveThread = make_unique<thread>(&Comm::receive, this);
@@ -233,9 +241,15 @@ void Comm::createWorkerThreads()
 	this->printThread = make_unique<thread>(&Comm::print, this);
 }
 
+void Comm::kill()
+{
+	killThreadLoops();
+	signalWaitingThreads();
+	joinWorkerThreads();
+}
+
 void Comm::joinWorkerThreads()
 {
-	kill();
 	if (this->serverThread)
 		this->serverThread->join();
 	if (this->receiveThread)
@@ -246,14 +260,26 @@ void Comm::joinWorkerThreads()
 		this->printThread->join();
 }
 
+void Comm::signalWaitingThreads()
+{
+	unique_lock<recursive_mutex> sendLock(this->inputm);
+	this->sendMessages = true;
+	sendLock.unlock();
+	this->inputcv.notify_one();
+	unique_lock<recursive_mutex> printLock(this->outputm);
+	this->printMessages = true;
+	printLock.unlock();
+	this->outputcv.notify_one();
+}
+
+void Comm::killThreadLoops()
+{
+	this->run = false;
+}
+
 bool Comm::isRunning() const
 {
 	return this->run;
-}
-
-void Comm::kill()
-{
-	this->run = false;
 }
 
 int Comm::close()
