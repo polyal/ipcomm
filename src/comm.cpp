@@ -20,8 +20,8 @@ Comm::Comm(const string& ip)
 
 Comm::~Comm()
 {
-	kill();
 	close();
+	kill();
 }
 
 void Comm::sendMessage(const string& message)
@@ -76,7 +76,7 @@ bool Comm::initServer()
 
 	cout << "Waiting for incoming connections..." << endl;
     while (!waitReadyOrTimeout(this->serverSocket)){
-	    if (!this->run)
+	    if (!this->run || this->err > 0)
 	    	return false;
 	}
 
@@ -139,7 +139,7 @@ void Comm::receive()
 {
 	while (this->run){
 		while (!waitReadyOrTimeout(this->commSocket)){
-	    	if (!this->run)
+	    	if (!this->run || this->err > 0)
 	    		return;
 		}
 		vector<char> buffer(this->buffSize);
@@ -154,8 +154,8 @@ void Comm::receive()
 	    }
 	    if(bytesRead == -1){
 	        cout << "Err read: " << errno << endl;
-	        if (errno != ECONNRESET)
-	            throw errno;
+	        this->err = errno;
+	        return;
 	    }
 	    this->replies.push(reply);
 
@@ -184,7 +184,10 @@ void Comm::send()
 		inputcv.wait(lock, [this]{ return this->sendMessages;});
 		while (!this->messages.empty()){
 			string message = this->messages.front();
-			::write(this->commSocket, message.data() , message.length());
+			if (::write(this->commSocket, message.data() , message.length()) == -1){
+				cout << "Err write: " << errno << endl;
+				return;
+			}
 			cout << "Sending: " << message << endl;
 			this->messages.pop();
 		}
@@ -198,13 +201,11 @@ void Comm::print()
 	while (this->run){
 		unique_lock<recursive_mutex> lock(this->outputm);
 		this->outputcv.wait(lock, [this]{ return this->printMessages;});
-
 		while (!printingQueue.empty()){
 			string message = printingQueue.front();
 			cout << message << endl;
 			printingQueue.pop();
 		}
-
 		this->printMessages = false;
 		lock.unlock();
 	}
@@ -220,10 +221,11 @@ bool Comm::waitReadyOrTimeout(const int fd)
     timeout.tv_usec = 0;
 
     if (select(fd + 1, &readfds, NULL, NULL, &timeout) < 0){
-        std::cerr << "ERR select: " << errno << endl;
+        cout << "ERR select: " << errno << endl;
         if (errno == EINTR){
         	cout << "EINTR" << endl;
         }
+        this->err = errno;
         return false;
     }
     if (!FD_ISSET(fd, &readfds)) {
