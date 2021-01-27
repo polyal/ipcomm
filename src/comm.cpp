@@ -142,6 +142,7 @@ void Comm::receive()
 	    	if (!this->run || this->err > 0)
 	    		return;
 		}
+		cout << "READ ready" << endl; 
 		vector<char> buffer(this->buffSize);
 		string reply;
 		int bytesRead;
@@ -156,6 +157,10 @@ void Comm::receive()
 	        cout << "Err read: " << errno << endl;
 	        this->err = errno;
 	        return;
+	    }
+	    else if (bytesRead == 0){
+	    	cout << "READ closed connection from server" << endl;
+	    	::close(this->commSocket);
 	    }
 	    this->replies.push(reply);
 
@@ -182,11 +187,12 @@ void Comm::send()
 	while (this->run){
 		unique_lock<recursive_mutex> lock(this->inputm);
 		inputcv.wait(lock, [this]{ return this->sendMessages;});
+		cout << "SEND ready" << endl;
 		while (!this->messages.empty()){
 			string message = this->messages.front();
 			if (::write(this->commSocket, message.data() , message.length()) == -1){
 				cout << "Err write: " << errno << endl;
-				return;
+				::close(this->commSocket);
 			}
 			cout << "Sending: " << message << endl;
 			this->messages.pop();
@@ -200,6 +206,7 @@ void Comm::print()
 {
 	while (this->run){
 		unique_lock<recursive_mutex> lock(this->outputm);
+		cout << "PRINT " << endl;
 		this->outputcv.wait(lock, [this]{ return this->printMessages;});
 		while (!printingQueue.empty()){
 			string message = printingQueue.front();
@@ -220,7 +227,8 @@ bool Comm::waitReadyOrTimeout(const int fd)
     timeout.tv_sec = 5;
     timeout.tv_usec = 0;
 
-    if (select(fd + 1, &readfds, NULL, NULL, &timeout) < 0){
+    int ret;
+    if ((ret = select(fd + 1, &readfds, NULL, NULL, &timeout)) < 0){
         cout << "ERR select: " << errno << endl;
         if (errno == EINTR){
         	cout << "EINTR" << endl;
@@ -228,11 +236,13 @@ bool Comm::waitReadyOrTimeout(const int fd)
         this->err = errno;
         return false;
     }
+    cout << "TIME " << ret << " " << timeout.tv_sec << " " << timeout.tv_usec << endl;
     if (!FD_ISSET(fd, &readfds)) {
     	cout << "ERR FD_ISSET: " << errno << endl;
 		this->err = errno;
 		return false;
     }
+    cout << "WAIT " << this->err << endl;
     return true;
 }
 
@@ -287,9 +297,13 @@ bool Comm::isRunning() const
 int Comm::close()
 {
 	int res = 0;
-	if (this->serverSocket >= 0)
+	if (this->serverSocket >= 0){
 		res = ::close(this->serverSocket);
-	if (this->commSocket >= 0)
+		this->serverSocket = -1;
+	}
+	if (this->commSocket >= 0){
 		res = res || ::close(this->commSocket);
+		this->commSocket = -1;
+	}
 	return res;
 }
