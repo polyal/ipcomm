@@ -6,7 +6,7 @@ libs = -pthread
 
 
 default:
-	$(compile) src/main.cpp src/comm.cpp $(libs) -o out/a.out
+	$(compile) src/main.cpp src/comm.cpp src/channel.cpp $(libs) -o out/a.out
 
 clean:
 	rm out/*

@@ -1,10 +1,6 @@
 #ifndef COMM_H
 #define COMM_H
 
-#include <unistd.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include <queue>
 #include <atomic>
 #include <memory>

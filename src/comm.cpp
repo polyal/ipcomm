@@ -1,4 +1,5 @@
 #include <iostream>
+#include "channel.h"
 #include "comm.h"
 
 using namespace std;
